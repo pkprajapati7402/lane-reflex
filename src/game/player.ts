@@ -82,28 +82,32 @@ export class Player {
 
     if (input.brake > 0.05) {
       this.isBraking = true;
-      const decel = PLAYER.BRAKE_DECEL * 14 * input.brake;
+      const decel = PLAYER.BRAKE_DECEL * 16 * input.brake;
       this.speed = Math.max(0, this.speed - decel * dt);
     } else {
       this.isBraking = false;
-      if (input.throttle > 0.5) {
-        // Active acceleration (Forward Arrow / W / Gamepad RT)
-        const accelMultiplier = this.isBoosting ? 2.2 : 1.0;
-        const accel = PLAYER.ACCEL * 16 * input.throttle * accelMultiplier;
+      if (input.throttle > 0.05) {
+        // Active acceleration (Forward Arrow / W / Gamepad RT / Mouse)
+        const accelMultiplier = this.isBoosting ? 2.4 : 1.0;
+        // Natural torque curve: high pull in low-mid range, smooth leveling at top speed
+        const speedRatio = Math.min(1.0, this.speed / effectiveMaxSpeed);
+        const torque = Math.max(0.35, 1.0 - speedRatio * 0.65);
+        const accel = PLAYER.ACCEL * 18 * input.throttle * accelMultiplier * torque;
+
         if (this.speed < effectiveMaxSpeed) {
           this.speed = Math.min(effectiveMaxSpeed, this.speed + accel * dt);
         } else if (!this.isBoosting && this.speed > this.baseMaxSpeed) {
           this.speed = Math.max(this.baseMaxSpeed, this.speed - PLAYER.COAST_DECEL * 10 * dt);
         }
       } else {
-        // Cruising / Coasting when throttle is not held
+        // Natural cruising / coasting when throttle is not pressed
         const cruiseTarget = this.isBoosting ? effectiveMaxSpeed : PLAYER.CRUISE_SPEED;
         if (this.speed > cruiseTarget) {
-          // Coast down to cruise speed
-          this.speed = Math.max(cruiseTarget, this.speed - PLAYER.COAST_DECEL * 8 * dt);
+          // Smooth coast down to cruise speed
+          this.speed = Math.max(cruiseTarget, this.speed - PLAYER.COAST_DECEL * 10 * dt);
         } else if (this.speed < cruiseTarget) {
-          // Recover up to cruise speed
-          this.speed = Math.min(cruiseTarget, this.speed + PLAYER.ACCEL * 6 * dt);
+          // Smooth recovery to cruise roll
+          this.speed = Math.min(cruiseTarget, this.speed + PLAYER.ACCEL * 8 * dt);
         }
       }
     }

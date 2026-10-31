@@ -37,7 +37,12 @@ export class AudioSystem {
   private boostOsc: OscillatorNode | null = null;
   private boostGain: GainNode | null = null;
 
-  // Dynamic Synth Music Arpeggiator
+  // Aerodynamic High-Speed Wind Rush
+  private windGain: GainNode | null = null;
+  private windFilter: BiquadFilterNode | null = null;
+  private windNoise: AudioBufferSourceNode | null = null;
+
+  // Dynamic Synthwave Soundtrack Engine
   private musicIntervalId: number | null = null;
   private arpStep: number = 0;
   private comboTier: number = 1;
@@ -92,6 +97,9 @@ export class AudioSystem {
     if (this.boostGain) {
       this.boostGain.gain.setTargetAtTime(0, t, 0.04);
     }
+    if (this.windGain) {
+      this.windGain.gain.setTargetAtTime(0, t, 0.04);
+    }
   }
 
   public stopMusic(): void {
@@ -107,7 +115,7 @@ export class AudioSystem {
   }
 
   /**
-   * Immediately silences engine, boost, and music arpeggiator upon collision,
+   * Immediately silences engine, boost, wind, and music upon collision,
    * leaving only the dramatic crash impact sound.
    */
   public handleCrash(): void {
@@ -151,6 +159,30 @@ export class AudioSystem {
     this.boostGain.connect(this.sfxGain);
     this.boostOsc.start();
 
+    // Aerodynamic High-Speed Wind Whoosh Generator
+    const windBufferSize = Math.floor(this.ctx.sampleRate * 2.0);
+    const windBuffer = this.ctx.createBuffer(1, windBufferSize, this.ctx.sampleRate);
+    const windData = windBuffer.getChannelData(0);
+    for (let i = 0; i < windBufferSize; i++) {
+      windData[i] = Math.random() * 2 - 1;
+    }
+    this.windNoise = this.ctx.createBufferSource();
+    this.windNoise.buffer = windBuffer;
+    this.windNoise.loop = true;
+
+    this.windFilter = this.ctx.createBiquadFilter();
+    this.windFilter.type = 'bandpass';
+    this.windFilter.frequency.value = 800;
+    this.windFilter.Q.value = 1.2;
+
+    this.windGain = this.ctx.createGain();
+    this.windGain.gain.value = 0;
+
+    this.windNoise.connect(this.windFilter);
+    this.windFilter.connect(this.windGain);
+    this.windGain.connect(this.sfxGain);
+    this.windNoise.start();
+
     this.isEngineRunning = true;
   }
 
@@ -176,6 +208,14 @@ export class AudioSystem {
       } else {
         this.boostGain.gain.setTargetAtTime(0, t, 0.1);
       }
+    }
+
+    // High-speed aerodynamic wind rush (rises smoothly past 150 km/h)
+    if (this.windGain && this.windFilter) {
+      const windAmount = Math.max(0, (speedRatio - 0.40) / 0.60);
+      const targetWindGain = (windAmount * 0.16) + (isBoosting ? 0.12 : 0);
+      this.windGain.gain.setTargetAtTime(targetWindGain, t, 0.08);
+      this.windFilter.frequency.setTargetAtTime(600 + speedRatio * 1600, t, 0.08);
     }
   }
 
@@ -311,45 +351,209 @@ export class AudioSystem {
     this.comboTier = Math.max(1, Math.min(5, tier));
   }
 
-  /**
-   * Dynamic Synthwave Arpeggiator that evolves with combo
-   */
-  private startMusicArpeggiator(): void {
-    if (this.musicIntervalId !== null) return;
+  private triggerKick(t: number): void {
+    if (!this.ctx || !this.musicGain) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
 
-    // F-minor synthwave scale notes (Hz)
-    const notes = [174.61, 207.65, 233.08, 261.63, 311.13, 349.23, 415.30, 466.16];
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(130, t);
+    osc.frequency.exponentialRampToValueAtTime(36, t + 0.12);
 
-    this.musicIntervalId = window.setInterval(() => {
-      if (!this.ctx || !this.musicGain || this.settings.muted) return;
+    gain.gain.setValueAtTime(0.44, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
 
-      const t = this.ctx.currentTime;
-      const noteIdx = (this.arpStep * (this.comboTier >= 3 ? 2 : 1)) % notes.length;
-      const freq = notes[noteIdx] * (this.comboTier >= 4 ? 2 : 1);
+    osc.connect(gain);
+    gain.connect(this.musicGain);
+    osc.start(t);
+    osc.stop(t + 0.15);
+  }
 
+  private triggerSnare(t: number): void {
+    if (!this.ctx || !this.musicGain) return;
+    // Tone body
+    const osc = this.ctx.createOscillator();
+    const oscGain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(175, t);
+    osc.frequency.exponentialRampToValueAtTime(80, t + 0.08);
+    oscGain.gain.setValueAtTime(0.22, t);
+    oscGain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+    osc.connect(oscGain);
+    oscGain.connect(this.musicGain);
+    osc.start(t);
+    osc.stop(t + 0.1);
+
+    // Noise snap
+    const bufferSize = Math.floor(this.ctx.sampleRate * 0.14);
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(1200, t);
+    filter.Q.value = 1.6;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.24, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.musicGain);
+    noise.start(t);
+    noise.stop(t + 0.15);
+  }
+
+  private triggerHat(t: number, accent: boolean): void {
+    if (!this.ctx || !this.musicGain) return;
+    const bufferSize = Math.floor(this.ctx.sampleRate * 0.04);
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.setValueAtTime(6500, t);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(accent ? 0.10 : 0.05, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + (accent ? 0.04 : 0.025));
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.musicGain);
+    noise.start(t);
+    noise.stop(t + 0.05);
+  }
+
+  private triggerBassNote(t: number, freq: number, duration: number): void {
+    if (!this.ctx || !this.musicGain) return;
+    const osc = this.ctx.createOscillator();
+    const filter = this.ctx.createBiquadFilter();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(freq, t);
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(240 + this.comboTier * 130, t);
+    filter.frequency.exponentialRampToValueAtTime(110, t + duration);
+    filter.Q.value = 3.5;
+
+    gain.gain.setValueAtTime(0.18, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.musicGain);
+    osc.start(t);
+    osc.stop(t + duration);
+  }
+
+  private triggerChordPad(t: number, freqs: number[], duration: number): void {
+    if (!this.ctx || !this.musicGain) return;
+    for (const f of freqs) {
       const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
       const filter = this.ctx.createBiquadFilter();
+      const gain = this.ctx.createGain();
 
-      osc.type = this.comboTier >= 2 ? 'sawtooth' : 'triangle';
-      osc.frequency.setValueAtTime(freq, t);
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(f, t);
 
       filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(450 + this.comboTier * 300, t);
+      filter.frequency.setValueAtTime(600 + this.comboTier * 220, t);
 
-      const noteDuration = 0.12;
-      gain.gain.setValueAtTime(0.08 * (this.comboTier * 0.3 + 0.7), t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + noteDuration);
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime(0.045, t + 0.25);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
 
       osc.connect(filter);
       filter.connect(gain);
       gain.connect(this.musicGain);
-
       osc.start(t);
-      osc.stop(t + noteDuration);
+      osc.stop(t + duration);
+    }
+  }
 
-      this.arpStep = (this.arpStep + 1) % 16;
-    }, 130); // ~115 BPM 16th notes
+  private triggerArpPluck(t: number, freq: number): void {
+    if (!this.ctx || !this.musicGain) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq, t);
+
+    gain.gain.setValueAtTime(0.07, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+
+    osc.connect(gain);
+    gain.connect(this.musicGain);
+    osc.start(t);
+    osc.stop(t + 0.13);
+  }
+
+  /**
+   * Procedural Synthwave Soundtrack Engine (120 BPM, multi-track cyber driving pulse)
+   */
+  private startMusicArpeggiator(): void {
+    if (this.musicIntervalId !== null) return;
+
+    // 120 BPM -> 16th note step = 125ms
+    this.musicIntervalId = window.setInterval(() => {
+      if (!this.ctx || !this.musicGain || this.settings.muted) return;
+
+      const t = this.ctx.currentTime;
+      const step = this.arpStep; // 0 to 63
+      const bar = Math.floor(step / 16); // 0 to 3
+      const stepInBeat = step % 4;
+
+      // 1. Cyber Kick on beats 0 and 2 of each bar
+      if (step % 8 === 0) {
+        this.triggerKick(t);
+      }
+
+      // 2. Punchy Snare on beats 1 and 3 of each bar
+      if (step % 8 === 4) {
+        this.triggerSnare(t);
+      }
+
+      // 3. Crisp Hi-Hats on 16th notes
+      if (this.comboTier >= 2 || step % 2 === 0) {
+        this.triggerHat(t, step % 4 === 2);
+      }
+
+      // 4. Lush Synth Chords (Fm - Db - Eb - Cm)
+      if (step % 16 === 0) {
+        const chords = [
+          [174.61, 207.65, 261.63], // Fm
+          [138.59, 174.61, 207.65], // Db
+          [155.56, 196.00, 233.08], // Eb
+          [130.81, 155.56, 196.00], // Cm
+        ];
+        this.triggerChordPad(t, chords[bar], 1.9);
+      }
+
+      // 5. Rolling Synthwave Bassline
+      const roots = [87.31, 69.30, 77.78, 65.41]; // F1, Db1, Eb1, C1
+      const root = roots[bar];
+      const bassFreq = (stepInBeat === 2) ? root * 2 : root;
+      this.triggerBassNote(t, bassFreq, 0.11);
+
+      // 6. Arp plucks that flourish with combo multipliers
+      if (this.comboTier >= 2 && (step % 2 === 1 || this.comboTier >= 4)) {
+        const melody = [349.23, 415.30, 466.16, 523.25, 622.25, 698.46];
+        const arpFreq = melody[(step * 2) % melody.length];
+        this.triggerArpPluck(t, arpFreq);
+      }
+
+      this.arpStep = (this.arpStep + 1) % 64;
+    }, 125);
   }
 
   public setMasterVolume(v: number): void {

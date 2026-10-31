@@ -11,9 +11,12 @@ export class HudUI {
 
   // HUD elements
   private speedEl!: HTMLElement;
+  private gearEl!: HTMLElement;
+  private speedBarEl!: HTMLElement;
   private scoreEl!: HTMLElement;
   private comboEl!: HTMLElement;
   private boostFillEl!: HTMLElement;
+  private boostStatusEl!: HTMLElement;
   private reactionFlashEl!: HTMLElement;
   private activeDevicePillEl!: HTMLElement;
 
@@ -84,20 +87,29 @@ export class HudUI {
           <span id="drill-banner-text">⚠️ HAZARD DETECTED! EVADE!</span>
         </div>
 
-        <!-- Bottom Left: Speedometer -->
+        <!-- Bottom Left: Cyber Cockpit Cluster -->
         <div class="hud-bottom-left">
-          <div class="speed-cluster">
-            <span id="hud-speed-num" class="speed-digits">000</span>
-            <span class="speed-unit">KM/H</span>
-          </div>
-          <div class="speed-bar-track">
-            <div id="hud-speed-bar" class="speed-bar-fill"></div>
+          <div class="cockpit-cluster">
+            <div class="speed-cluster">
+              <span id="hud-speed-num" class="speed-digits">000</span>
+              <div class="speed-meta">
+                <span class="speed-unit">KM/H</span>
+                <span id="hud-gear-badge" class="gear-badge">GEAR 3</span>
+              </div>
+            </div>
+            <!-- Dynamic RPM Tachometer Bar -->
+            <div class="speed-bar-track">
+              <div id="hud-speed-bar" class="speed-bar-fill"></div>
+            </div>
           </div>
         </div>
 
         <!-- Bottom Right: Boost Gauge -->
         <div class="hud-bottom-right">
-          <div class="hud-label">NITRO BOOST [SPACE]</div>
+          <div class="boost-header-row">
+            <span class="hud-label">NITRO BOOST [SPACE]</span>
+            <span id="hud-boost-status" class="boost-status-text">⚡ READY</span>
+          </div>
           <div class="boost-gauge-container">
             <div id="hud-boost-bar" class="boost-gauge-fill" style="width: 50%"></div>
           </div>
@@ -348,9 +360,12 @@ export class HudUI {
 
     // Query HUD elements
     this.speedEl = this.container.querySelector('#hud-speed-num')!;
+    this.gearEl = this.container.querySelector('#hud-gear-badge')!;
+    this.speedBarEl = this.container.querySelector('#hud-speed-bar')!;
     this.scoreEl = this.container.querySelector('#hud-score')!;
     this.comboEl = this.container.querySelector('#hud-combo-badge')!;
     this.boostFillEl = this.container.querySelector('#hud-boost-bar')!;
+    this.boostStatusEl = this.container.querySelector('#hud-boost-status')!;
     this.reactionFlashEl = this.container.querySelector('#hud-reaction-flash')!;
     this.activeDevicePillEl = this.container.querySelector('#hud-device-pill')!;
 
@@ -592,10 +607,40 @@ export class HudUI {
     if (now - this.lastDomUpdate < 95) return; // ~10Hz limit
     this.lastDomUpdate = now;
 
-    this.speedEl.textContent = Math.round(speedKmh).toString().padStart(3, '0');
+    const roundedSpeed = Math.round(speedKmh);
+    this.speedEl.textContent = roundedSpeed.toString().padStart(3, '0');
     this.scoreEl.textContent = Math.round(score).toString().padStart(6, '0');
     this.comboEl.textContent = `x${combo.toFixed(1)} COMBO`;
     this.boostFillEl.style.width = `${Math.min(100, Math.max(0, boostPct))}%`;
+
+    // Dynamic Gear calculation (1 through 6)
+    let gear = 1;
+    if (roundedSpeed > 225) gear = 6;
+    else if (roundedSpeed > 175) gear = 5;
+    else if (roundedSpeed > 130) gear = 4;
+    else if (roundedSpeed > 85) gear = 3;
+    else if (roundedSpeed > 45) gear = 2;
+    this.gearEl.textContent = `GEAR ${gear}`;
+
+    // Tachometer speed bar fill (max speed reference ~280 km/h)
+    const tachPct = Math.min(100, (roundedSpeed / 280) * 100);
+    this.speedBarEl.style.width = `${tachPct}%`;
+
+    // Redline glow indicator when pushing high speeds
+    if (roundedSpeed >= 210) {
+      this.speedEl.classList.add('speed-redline');
+    } else {
+      this.speedEl.classList.remove('speed-redline');
+    }
+
+    // Boost status feedback
+    if (boostPct >= 20) {
+      this.boostStatusEl.textContent = '⚡ READY';
+      this.boostStatusEl.style.color = '#00f0ff';
+    } else {
+      this.boostStatusEl.textContent = 'CHARGING';
+      this.boostStatusEl.style.color = '#8888aa';
+    }
 
     const icon = activeDevice === 'gamepad' ? '🎮 GAMEPAD' : (activeDevice === 'mouse' ? '🖱️ MOUSE' : '⌨️ KEYBOARD');
     this.activeDevicePillEl.textContent = icon;

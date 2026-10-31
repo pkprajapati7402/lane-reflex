@@ -20,32 +20,32 @@ export const CAMERA = {
 } as const;
 
 export const PLAYER = {
-  ACCEL: 450,                // Responsive acceleration units/s^2
+  ACCEL: 480,                // Responsive acceleration units/s^2
   BRAKE_DECEL: 950,          // Braking deceleration units/s^2
-  COAST_DECEL: 150,          // Natural drag deceleration
+  COAST_DECEL: 160,          // Natural drag deceleration
   CRUISE_SPEED: 7500,        // Default cruise speed (~125 km/h)
   MAX_SPEED: 12500,          // Base top speed (approx 210 km/h)
   BOOST_SPEED: 16800,        // Boosted top speed (approx 280 km/h)
   MIN_SPEED: 0,
-  LATERAL_SPEED: 2.6,        // Lateral speed across road (-1..1) per second at max speed
-  HITBOX_WIDTH: 0.28,        // Visual width in road fractions
-  HITBOX_LENGTH: 360,        // Visual depth in world units
-  FORGIVING_RATIO: 0.85,     // 15% forgiving hitbox margin
-  NEAR_MISS_LATERAL: 0.44,   // Near-miss lateral threshold
-  NEAR_MISS_Z: 480,          // Near-miss longitudinal threshold
+  LATERAL_SPEED: 2.8,        // Lateral speed across road (-1..1) per second at max speed
+  HITBOX_WIDTH: 0.18,        // True vehicle width (avoids phantom collisions)
+  HITBOX_LENGTH: 190,        // True longitudinal depth
+  FORGIVING_RATIO: 0.70,     // 30% forgiving hitbox margin (only flags crash on real contact)
+  NEAR_MISS_LATERAL: 0.38,   // Near-miss lateral threshold
+  NEAR_MISS_Z: 380,          // Near-miss longitudinal threshold
 } as const;
 
 export const TRAFFIC = {
-  MIN_SPEED: 4500,           // Slowest traffic speed
-  MAX_SPEED: 8500,           // Fastest traffic speed
-  TRUCK_SPEED: 4000,
-  FAST_CAR_SPEED: 9500,
-  SPAWN_AHEAD_DISTANCE: 42000, // Spawn distance ahead of player
-  DESPAWN_BEHIND_DISTANCE: 3000, // Despawn distance behind player
-  HITBOX_WIDTH: 0.28,
-  HITBOX_LENGTH: 400,
-  TRUCK_HITBOX_WIDTH: 0.38,
-  TRUCK_HITBOX_LENGTH: 700,
+  MIN_SPEED: 4800,           // Slowest traffic speed
+  MAX_SPEED: 8800,           // Fastest traffic speed
+  TRUCK_SPEED: 4200,
+  FAST_CAR_SPEED: 9200,
+  SPAWN_AHEAD_DISTANCE: 32000, // Spawn distance ahead of player
+  DESPAWN_BEHIND_DISTANCE: 2500, // Despawn distance behind player
+  HITBOX_WIDTH: 0.18,        // Precise vehicle width
+  HITBOX_LENGTH: 200,        // Precise vehicle length
+  TRUCK_HITBOX_WIDTH: 0.28,
+  TRUCK_HITBOX_LENGTH: 420,
 } as const;
 
 export const TIMESTEP = 1 / 60; // 60 Hz fixed simulation

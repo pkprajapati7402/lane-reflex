@@ -25,7 +25,6 @@ export class TrafficSpawner {
   private nextSpawnZ: number = 6000;
   private difficultyTier: number = 1;
   private densityMode: TrafficDensity = 'moderate';
-  private lastWaveType: PatternType = 'OPEN_SPRINT';
 
   // Palette of distinct car colors
   private carColors: string[] = [
@@ -57,30 +56,28 @@ export class TrafficSpawner {
     }
     this.nextSpawnZ = 6000;
     this.difficultyTier = 1;
-    this.lastWaveType = 'OPEN_SPRINT';
   }
 
   public setDifficultyTier(tier: number): void {
     this.difficultyTier = Math.max(1, Math.min(10, tier));
   }
 
-  public update(playerZ: number, playerSpeed: number): void {
-    // Keep waves spawned ahead of the player
+  public update(playerZ: number, _playerSpeed: number): void {
+    // Keep traffic continuously populated ahead of the player without desert gaps
     while (this.nextSpawnZ < playerZ + TRAFFIC.SPAWN_AHEAD_DISTANCE) {
       this.spawnNextWave(this.nextSpawnZ);
 
-      // Density spacing multiplier: low has wide gaps, high has frequent clusters
-      let densityMultiplier = 1.0;
-      if (this.densityMode === 'low') densityMultiplier = 1.85;
-      else if (this.densityMode === 'high') densityMultiplier = 0.65;
+      // Organic cadence: continuous stream instead of massive bursty waves
+      let baseInterval = 3400;
+      if (this.densityMode === 'low') baseInterval = 5000;
+      else if (this.densityMode === 'high') baseInterval = 2400;
 
-      // Random jitter so traffic waves arrive unpredictably (random timing)
-      const randomJitter = this.prng.rangeFloat(0.85, 1.3);
+      // Progressive difficulty and random natural jitter
+      const diffScale = Math.max(0.75, 1.0 - (this.difficultyTier - 1) * 0.035);
+      const jitter = this.prng.rangeFloat(0.85, 1.25);
+      const step = baseInterval * diffScale * jitter;
 
-      const minGapTime = Math.max(0.9, (2.2 - this.difficultyTier * 0.10) * densityMultiplier * randomJitter);
-      const speedRef = Math.max(8000, playerSpeed);
-      const waveSpacing = speedRef * minGapTime;
-      this.nextSpawnZ += waveSpacing;
+      this.nextSpawnZ += step;
     }
 
     // Clean up cars that fell far behind the player
@@ -95,41 +92,100 @@ export class TrafficSpawner {
   }
 
   private spawnNextWave(baseZ: number): void {
-    // Available patterns weighted by density mode
-    let patterns: PatternType[] = ['OPEN_SPRINT', 'SINGLE_GAP_WALL', 'ZIGZAG', 'HEAVY_TRUCK_BLOCK', 'TELEGRAPHED_LANE_CHANGE'];
-    
+    // Organic traffic mix weighted by density mode
+    const roll = this.prng.nextFloat();
+
     if (this.densityMode === 'low') {
-      // In low mode, favor open sprint and single gap walls with lots of breathing room
-      patterns = ['OPEN_SPRINT', 'OPEN_SPRINT', 'SINGLE_GAP_WALL', 'HEAVY_TRUCK_BLOCK'];
-    } else if (this.densityMode === 'high') {
-      // In high mode, favor intense walls, zigzags and lane changers
-      patterns = ['SINGLE_GAP_WALL', 'ZIGZAG', 'HEAVY_TRUCK_BLOCK', 'TELEGRAPHED_LANE_CHANGE', 'SINGLE_GAP_WALL'];
-    }
-
-    let chosen: PatternType = this.prng.choice(patterns);
-
-    // Random variety: avoid mechanical repetition
-    if (chosen === this.lastWaveType && this.prng.nextFloat() < 0.5) {
-      chosen = 'OPEN_SPRINT';
-    }
-    this.lastWaveType = chosen;
-
-    switch (chosen) {
-      case 'SINGLE_GAP_WALL':
-        this.spawnSingleGapWall(baseZ);
-        break;
-      case 'ZIGZAG':
-        this.spawnZigzag(baseZ);
-        break;
-      case 'HEAVY_TRUCK_BLOCK':
+      // In low mode: mostly single cruisers and generous gaps
+      if (roll < 0.55) {
+        this.spawnOrganicFlow(baseZ, 1);
+      } else if (roll < 0.80) {
         this.spawnTruckBlock(baseZ);
-        break;
-      case 'TELEGRAPHED_LANE_CHANGE':
+      } else {
         this.spawnTelegraphedChange(baseZ);
-        break;
-      default:
-        this.spawnOpenSprint(baseZ);
-        break;
+      }
+    } else if (this.densityMode === 'high') {
+      // In high mode: continuous reflex scanning with lane changers and staggered pairs
+      if (roll < 0.35) {
+        this.spawnOrganicFlow(baseZ, 2);
+      } else if (roll < 0.60) {
+        this.spawnTelegraphedChange(baseZ);
+      } else if (roll < 0.85) {
+        this.spawnSingleGapWall(baseZ);
+      } else {
+        this.spawnTruckBlock(baseZ);
+      }
+    } else {
+      // Moderate: balanced blend of single cars, trucks, and telegraphed lane changers
+      if (roll < 0.45) {
+        this.spawnOrganicFlow(baseZ, this.prng.nextFloat() < 0.65 ? 1 : 2);
+      } else if (roll < 0.68) {
+        this.spawnTruckBlock(baseZ);
+      } else if (roll < 0.88) {
+        this.spawnTelegraphedChange(baseZ);
+      } else {
+        this.spawnSingleGapWall(baseZ);
+      }
+    }
+  }
+
+  /**
+   * Spawns 1 or 2 organic cruisers with diverse speeds and colors,
+   * guaranteeing at least 2 open overtaking lanes.
+   */
+  public spawnOrganicFlow(baseZ: number, carCount: number = 1): void {
+    const lanes: number[] = [0, 1, 2, 3];
+    // Shuffle lanes to pick distinct random positions
+    for (let i = lanes.length - 1; i > 0; i--) {
+      const j = this.prng.rangeInt(0, i);
+      const temp = lanes[i];
+      lanes[i] = lanes[j];
+      lanes[j] = temp;
+    }
+
+    const count = Math.min(2, Math.max(1, carCount));
+    for (let i = 0; i < count; i++) {
+      const lane = lanes[i];
+      const car = this.pool.acquire();
+      car.active = true;
+
+      const isSport = this.prng.nextFloat() < 0.25;
+      const isTruck = !isSport && this.prng.nextFloat() < 0.20 && (lane === 0 || lane === 3);
+
+      if (isTruck) {
+        car.type = 'truck';
+        car.width = TRAFFIC.TRUCK_HITBOX_WIDTH;
+        car.length = TRAFFIC.TRUCK_HITBOX_LENGTH;
+        car.color = '#ef4444';
+        const truckSpeed = this.prng.rangeFloat(TRAFFIC.TRUCK_SPEED, TRAFFIC.TRUCK_SPEED * 1.25);
+        car.speed = truckSpeed;
+        car.baseSpeed = truckSpeed;
+      } else if (isSport) {
+        car.type = 'sport';
+        car.width = TRAFFIC.HITBOX_WIDTH;
+        car.length = TRAFFIC.HITBOX_LENGTH;
+        car.color = this.prng.choice(this.carColors);
+        const sportSpeed = this.prng.rangeFloat(TRAFFIC.MAX_SPEED * 0.9, TRAFFIC.FAST_CAR_SPEED);
+        car.speed = sportSpeed;
+        car.baseSpeed = sportSpeed;
+      } else {
+        car.type = 'sedan';
+        car.width = TRAFFIC.HITBOX_WIDTH;
+        car.length = TRAFFIC.HITBOX_LENGTH;
+        car.color = this.prng.choice(this.carColors);
+        const sedanSpeed = this.prng.rangeFloat(TRAFFIC.MIN_SPEED * 1.1, TRAFFIC.MAX_SPEED * 0.85);
+        car.speed = sedanSpeed;
+        car.baseSpeed = sedanSpeed;
+      }
+
+      car.lane = lane;
+      car.x = ROAD.LANE_POSITIONS[lane];
+      car.startX = car.x;
+      car.targetX = car.x;
+
+      // Stagger longitudinally so cars NEVER form an abreast block
+      const stagger = i === 0 ? this.prng.rangeFloat(-200, 200) : this.prng.rangeFloat(600, 1200);
+      car.z = baseZ + stagger;
     }
   }
 

@@ -1,4 +1,4 @@
-import { ROAD, PLAYER } from '../core/constants';
+import { ROAD, PLAYER, CAMERA } from '../core/constants';
 import { Road, RoadSegment } from '../game/road';
 import { Player } from '../game/player';
 import { TrafficCar } from '../game/traffic';
@@ -68,6 +68,7 @@ export class Renderer {
     const baseIndex = Math.floor(camera.z / ROAD.SEGMENT_LENGTH);
 
     interface VisibleSeg {
+      worldIndex: number;
       template: RoadSegment;
       p1: { x: number; y: number; w: number; scale: number };
       p2: { x: number; y: number; w: number; scale: number };
@@ -104,13 +105,31 @@ export class Renderer {
       template.p1.screen.scale = scale1;
 
       visibleList.push({
+        worldIndex,
         template,
         p1: { x: x1, y: y1, w: w1, scale: scale1 },
         p2: { x: x2, y: y2, w: w2, scale: scale2 },
       });
     }
 
-    // 3. Render Road Segments & Roadside 3D Scenery Back to Front
+    // Bucket active traffic cars by world segment index for true back-to-front depth sorting
+    const carsBySegment = new Map<number, TrafficCar[]>();
+    for (const car of trafficCars) {
+      if (!car.active) continue;
+      // Only render cars ahead of or alongside player (culled once cleanly overtaken)
+      if (car.z < player.z - 80) continue;
+      const deltaZ = car.z - camera.z;
+      if (deltaZ <= 20 || deltaZ > 24000) continue;
+      const segIndex = Math.floor(car.z / ROAD.SEGMENT_LENGTH);
+      let list = carsBySegment.get(segIndex);
+      if (!list) {
+        list = [];
+        carsBySegment.set(segIndex, list);
+      }
+      list.push(car);
+    }
+
+    // 3. Render Road Segments & Traffic & Roadside 3D Scenery Back to Front
     for (let n = visibleList.length - 1; n >= 0; n--) {
       const segData = visibleList[n];
       const p1 = segData.p1;
@@ -121,9 +140,18 @@ export class Renderer {
         continue;
       }
 
+      // A. Road surface and lane markings
       this.renderSegment(ctx, segData.template, p1, p2);
 
-      // Render 3D Roadside Props & Overhead Highway Gantries
+      // B. Traffic cars on this segment (occluded naturally by foreground hills)
+      const carsOnSegment = carsBySegment.get(segData.worldIndex);
+      if (carsOnSegment) {
+        for (const car of carsOnSegment) {
+          this.drawTrafficCar(ctx, car, segData, camera);
+        }
+      }
+
+      // C. Render 3D Roadside Props & Overhead Highway Gantries
       if (segData.template.sprites && segData.template.sprites.length > 0) {
         for (const prop of segData.template.sprites) {
           const spriteCached = this.sprites.getRoadsideSprite(prop.name);
@@ -151,13 +179,10 @@ export class Renderer {
     }
 
     // 4. Interactive 3D Headlight Projection onto Road Surface
-    this.renderHeadlights(ctx, player);
+    this.renderHeadlights(ctx, player, camera);
 
-    // 5. Render Traffic Cars Back to Front
-    this.renderTraffic(ctx, trafficCars, camera, road);
-
-    // 6. Render Player Car (in foreground)
-    this.renderPlayer(ctx, player);
+    // 5. Render Player Car (in foreground with 1:1 physics alignment)
+    this.renderPlayer(ctx, player, camera);
 
     // 7. Render Particles & Floating Pops
     this.particles.render(ctx);
@@ -181,13 +206,16 @@ export class Renderer {
     ctx.restore();
   }
 
-  private renderHeadlights(ctx: CanvasRenderingContext2D, player: Player): void {
-    const roadHalfWidthForeground = this.width * 0.36;
-    const playerScreenX = (this.width / 2) + (player.x * roadHalfWidthForeground * 0.55) + (player.steerAngle * 14);
+  private renderHeadlights(ctx: CanvasRenderingContext2D, player: Player, camera: Camera): void {
+    const playerDeltaZ = CAMERA.DISTANCE_BEHIND;
+    const playerScale = (camera.depth / playerDeltaZ) * (this.height / 2);
+    const playerRoadWidth = playerScale * ROAD.ROAD_WIDTH;
+    const playerCenterBaseX = (this.width / 2) - (playerScale * camera.x);
+    const playerScreenX = playerCenterBaseX + (player.x * playerRoadWidth) + (player.steerAngle * 10);
     const playerScreenY = this.height - 40;
 
     // Headlight illumination trapezoid shining down road lanes
-    const beamLength = 220;
+    const beamLength = 240;
     const beamSpread = 160;
     const headlightY = playerScreenY - beamLength;
 
@@ -208,8 +236,8 @@ export class Renderer {
     ctx.fill();
 
     // Subtle current-lane guide glow on the asphalt
-    const laneWidth = (this.width * 0.45) / 4;
-    ctx.fillStyle = 'rgba(0, 240, 255, 0.06)';
+    const laneWidth = playerRoadWidth / 4;
+    ctx.fillStyle = 'rgba(0, 240, 255, 0.07)';
     ctx.fillRect(playerScreenX - laneWidth / 2, playerScreenY - 160, laneWidth, 140);
 
     ctx.restore();
@@ -308,53 +336,61 @@ export class Renderer {
     ctx.fill();
   }
 
-  private renderTraffic(
+  private drawTrafficCar(
     ctx: CanvasRenderingContext2D,
-    cars: TrafficCar[],
-    camera: Camera,
-    road: Road
+    car: TrafficCar,
+    segData: { worldIndex: number; p1: { x: number; y: number; w: number; scale: number }; p2: { x: number; y: number; w: number; scale: number } },
+    camera: Camera
   ): void {
-    // Sort cars by distance descending (draw furthest first)
-    const maxDrawZ = camera.z + (ROAD.DRAW_DISTANCE * ROAD.SEGMENT_LENGTH);
-    const sorted = cars
-      .filter((c) => c.active && c.z > camera.z && c.z < maxDrawZ)
-      .sort((a, b) => b.z - a.z);
+    const deltaZ = car.z - camera.z;
+    if (deltaZ <= 20) return;
 
-    for (const car of sorted) {
-      const deltaZ = car.z - camera.z;
-      if (deltaZ <= 100) continue;
+    // Segment fractional position (0 to 1) for continuous interpolation
+    const segZ = segData.worldIndex * ROAD.SEGMENT_LENGTH;
+    const t = Math.max(0, Math.min(1.0, (car.z - segZ) / ROAD.SEGMENT_LENGTH));
 
-      const segIndex = Math.floor(car.z / ROAD.SEGMENT_LENGTH);
-      const segTemplate = road.segments[((segIndex % road.segments.length) + road.segments.length) % road.segments.length];
+    const p1 = segData.p1;
+    const p2 = segData.p2;
 
-      const scale = (camera.depth / deltaZ) * (this.height / 2);
-      const screenCenterX = (this.width / 2) - (scale * camera.x);
-      const screenY = (this.height / 2) - (scale * (segTemplate.p1.world.y - camera.y));
-      const roadWidthScreen = scale * ROAD.ROAD_WIDTH;
+    const scale = p1.scale + (p2.scale - p1.scale) * t;
+    const screenBaseX = p1.x + (p2.x - p1.x) * t;
+    const screenBaseY = p1.y + (p2.y - p1.y) * t;
+    const roadWidthScreen = p1.w + (p2.w - p1.w) * t;
 
-      // Exact lane position on the road surface
-      const screenX = screenCenterX + (car.x * roadWidthScreen);
+    // Exact horizontal lane position on the road surface
+    const screenX = screenBaseX + (car.x * roadWidthScreen);
+    const screenY = screenBaseY;
 
-      const cached = this.sprites.getTrafficSprite(car);
-      // Scale sprite proportionally with road depth
-      const spriteScale = scale * 2.2;
-      const w = cached.width * spriteScale;
-      const h = cached.height * spriteScale;
+    // Sprite scaled proportionally with road depth perspective
+    const cached = this.sprites.getTrafficSprite(car);
+    const spriteScale = scale * 2.2;
+    const w = cached.width * spriteScale;
+    const h = cached.height * spriteScale;
 
-      ctx.drawImage(cached.canvas, screenX - w / 2, screenY - h, w, h);
+    ctx.save();
+    // Atmospheric Fog Fade for distant traffic (prevents popping or showing through distant hills)
+    if (deltaZ > 12000) {
+      const fogAlpha = Math.max(0, 1 - (deltaZ - 12000) / 12000);
+      ctx.globalAlpha = fogAlpha;
     }
+
+    ctx.drawImage(cached.canvas, screenX - w / 2, screenY - h, w, h);
+    ctx.restore();
   }
 
-  private renderPlayer(ctx: CanvasRenderingContext2D, player: Player): void {
+  private renderPlayer(ctx: CanvasRenderingContext2D, player: Player, camera: Camera): void {
     const tilt = Math.abs(player.steerAngle) < 0.15 ? 'center' : (player.steerAngle < 0 ? 'left' : 'right');
     const cached = this.sprites.getPlayerSprite(tilt, player.isBraking, player.isBoosting);
 
-    // Player car in foreground with dynamic lane tracking across screen
+    // Exact 1:1 perspective alignment matching traffic cars
+    const playerDeltaZ = CAMERA.DISTANCE_BEHIND;
+    const playerScale = (camera.depth / playerDeltaZ) * (this.height / 2);
+    const playerRoadWidth = playerScale * ROAD.ROAD_WIDTH;
+    const playerCenterBaseX = (this.width / 2) - (playerScale * camera.x);
+    const playerScreenX = playerCenterBaseX + (player.x * playerRoadWidth) + (player.steerAngle * 10);
     const playerScreenY = this.height - 40;
-    const roadHalfWidthForeground = this.width * 0.36;
-    const playerScreenX = (this.width / 2) + (player.x * roadHalfWidthForeground * 0.55) + (player.steerAngle * 14);
 
-    const scale = 0.85; // Crisp foreground size
+    const scale = 0.82; // Crisp, perfectly proportioned foreground size
     const w = cached.width * scale;
     const h = cached.height * scale;
 

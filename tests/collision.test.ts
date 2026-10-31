@@ -30,17 +30,17 @@ describe('Collision & Near-Miss System', () => {
     expect(result.crashedWithCarId).toBe(car.id);
   });
 
-  it('respects 15% forgiving hitbox margin (near edge does not cause crash)', () => {
+  it('respects forgiving hitbox margin (near edge does not cause phantom crash)', () => {
     player.x = 0;
     player.z = 1000;
     player.speed = 10000;
 
-    // Place car just outside forgiving threshold but inside 100% visual bounding box
-    const visualHalfWidth = (PLAYER.HITBOX_WIDTH + car.width) / 2; // 0.28
-    const forgivingHalfWidth = visualHalfWidth * PLAYER.FORGIVING_RATIO; // 0.238
+    // Place car just outside forgiving threshold (0.126) but inside 100% visual bounding box (0.18)
+    const visualHalfWidth = (PLAYER.HITBOX_WIDTH + car.width) / 2; // 0.18
+    const forgivingHalfWidth = visualHalfWidth * PLAYER.FORGIVING_RATIO; // 0.126
 
-    // Position laterally at 0.26 (outside 0.238 but inside 0.28)
-    car.x = 0.26;
+    // Position laterally at 0.15 (outside 0.126 but inside 0.18)
+    car.x = 0.15;
     car.z = 1000;
     car.speed = 5000;
 
