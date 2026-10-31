@@ -61,6 +61,11 @@ export interface ScreenPoint {
   scale: number;
 }
 
+export interface RoadProp {
+  name: string;
+  offset: number; // Normalized road offset (-1.2 is left curb, +1.2 is right curb, 0 is center overhead)
+}
+
 export interface RoadSegment {
   index: number;
   p1: {
@@ -79,6 +84,7 @@ export interface RoadSegment {
     rumble: string;
     lane: string;
   };
+  sprites: RoadProp[];
 }
 
 export class Road {
@@ -117,6 +123,27 @@ export class Road {
     const n = this.segments.length;
     const isEven = Math.floor(n / ROAD.RUMBLE_LENGTH) % 2 === 0;
 
+    const props: RoadProp[] = [];
+
+    // 1. Neon highway light pillars every 10 segments on both sides
+    if (n % 10 === 0) {
+      props.push({ name: 'cyber_pillar', offset: -1.25 });
+      props.push({ name: 'cyber_pillar', offset: 1.25 });
+    }
+
+    // 2. Overhead highway gantry sign arches every 60 segments (drive underneath!)
+    if (n % 60 === 30) {
+      props.push({ name: 'highway_gantry', offset: 0 });
+    }
+
+    // 3. Billboards & Palms on outer landscape
+    if (n % 40 === 15) {
+      props.push({ name: n % 80 === 15 ? 'billboard_redline' : 'billboard_reflex', offset: -1.65 });
+    }
+    if (n % 25 === 5) {
+      props.push({ name: 'palm_tree', offset: 1.6 });
+    }
+
     const seg: RoadSegment = {
       index: n,
       p1: {
@@ -143,6 +170,7 @@ export class Road {
         rumble: isEven ? this.currentBiome.rumbleDark : this.currentBiome.rumbleLight,
         lane: isEven ? this.currentBiome.lane : 'transparent',
       },
+      sprites: props,
     };
 
     this.segments.push(seg);
@@ -173,37 +201,28 @@ export class Road {
   private buildTrack(): void {
     this.segments = [];
 
-    // Build an engaging sequence of straightaways, sweeping turns, and gentle elevation waves
-    // Straight warm-up section
-    this.addRoad(50, 50, 50, 0, 0);
+    // Completely straight multi-lane highway with gentle 3D elevation crests and dips
+    // 1. Long high-speed flat straightaway
+    this.addRoad(40, 80, 40, 0, 0);
 
-    // Gentle S-curve
-    this.addRoad(40, 60, 40, 1.2, 5);
-    this.addRoad(30, 40, 30, -1.5, -5);
+    // 2. Gentle rolling crest hill
+    this.addRoad(40, 60, 40, 0, 16);
+    this.addRoad(40, 60, 40, 0, -16);
 
-    // Crest hill
-    this.addRoad(50, 50, 50, 0, 25);
-    this.addRoad(50, 50, 50, 0, -25);
+    // 3. Flat straight speedway
+    this.addRoad(50, 90, 50, 0, 0);
 
-    // Right curve with dip
-    this.addRoad(40, 80, 40, 2.0, -15);
-    this.addRoad(40, 80, 40, 0, 15);
+    // 4. Gentle rolling dip
+    this.addRoad(40, 50, 40, 0, -12);
+    this.addRoad(40, 50, 40, 0, 12);
 
-    // Fast technical chicane
-    this.addRoad(30, 40, 30, -2.2, 0);
-    this.addRoad(30, 40, 30, 2.2, 0);
-    this.addRoad(30, 40, 30, -1.0, 0);
+    // 5. High-speed elevated viaduct stretch
+    this.addRoad(40, 60, 40, 0, 18);
+    this.addRoad(50, 70, 50, 0, 0);
+    this.addRoad(40, 60, 40, 0, -18);
 
-    // Long high-speed straight with rolling bumps
-    this.addRoad(60, 100, 60, 0, 10);
-    this.addRoad(40, 80, 40, 0, -10);
-
-    // Sweeping left turn
-    this.addRoad(50, 90, 50, -1.8, 15);
-    this.addRoad(40, 60, 40, 0, -15);
-
-    // Smooth return to straight
-    this.addRoad(50, 50, 50, 0, 0);
+    // 6. Return straightaway
+    this.addRoad(50, 80, 50, 0, 0);
 
     this.trackLength = this.segments.length * ROAD.SEGMENT_LENGTH;
   }

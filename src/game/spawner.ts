@@ -134,74 +134,84 @@ export class TrafficSpawner {
   }
 
   /**
-   * Spawns a wall of cars with exactly 1 or 2 clear escape lanes
+   * Spawns traffic with staggered longitudinal spacing and diverse speeds,
+   * guaranteeing at least 2 clear overtaking lanes.
    */
   public spawnSingleGapWall(baseZ: number): { openLanes: number[] } {
     const totalLanes = ROAD.LANES;
-    // Guaranteed open lane
-    const openLane = this.prng.rangeInt(0, totalLanes - 1);
-    const speed = this.prng.rangeFloat(TRAFFIC.MIN_SPEED, TRAFFIC.MAX_SPEED * 0.85);
+    // Guarantee 2 wide escape lanes so player can always overtake
+    const openLaneA = this.prng.rangeInt(0, 1);
+    const openLaneB = this.prng.rangeInt(2, 3);
+    const baseSpeed = this.prng.rangeFloat(TRAFFIC.MIN_SPEED, TRAFFIC.MAX_SPEED * 0.85);
 
     for (let lane = 0; lane < totalLanes; lane++) {
-      if (lane === openLane) continue;
+      if (lane === openLaneA || lane === openLaneB) continue;
 
       const car = this.pool.acquire();
       car.active = true;
       car.type = 'sedan';
       car.lane = lane;
       car.x = ROAD.LANE_POSITIONS[lane];
+      car.startX = car.x;
       car.targetX = car.x;
-      car.z = baseZ;
-      car.speed = speed;
-      car.baseSpeed = speed;
+      // Stagger longitudinally so cars NEVER form an unbroken rigid line
+      car.z = baseZ + this.prng.rangeFloat(-500, 500);
+      // Individual speed variation so cars naturally disperse over time
+      const carSpeed = baseSpeed + this.prng.rangeFloat(-700, 700);
+      car.speed = carSpeed;
+      car.baseSpeed = carSpeed;
       car.color = this.prng.choice(this.carColors);
       car.width = TRAFFIC.HITBOX_WIDTH;
       car.length = TRAFFIC.HITBOX_LENGTH;
     }
 
-    return { openLanes: [openLane] };
+    return { openLanes: [openLaneA, openLaneB] };
   }
 
   /**
-   * Spawns two staggered barriers requiring quick weave
+   * Spawns staggered barriers with dynamic longitudinal spacing
    */
   public spawnZigzag(baseZ: number): void {
-    const laneA = this.prng.rangeInt(0, 1); // 0 or 1
-    const laneB = this.prng.rangeInt(2, 3); // 2 or 3
+    const laneA = this.prng.rangeInt(0, 1); // open at laneA
+    const laneB = this.prng.rangeInt(2, 3); // open at laneB
     const speed = this.prng.rangeFloat(TRAFFIC.MIN_SPEED, TRAFFIC.MAX_SPEED * 0.9);
 
     // First barrier
     for (let l = 0; l < ROAD.LANES; l++) {
-      if (l === laneA) continue; // open at laneA
+      if (l === laneA) continue;
       const car = this.pool.acquire();
       car.active = true;
       car.lane = l;
       car.x = ROAD.LANE_POSITIONS[l];
+      car.startX = car.x;
       car.targetX = car.x;
-      car.z = baseZ;
-      car.speed = speed;
-      car.baseSpeed = speed;
+      car.z = baseZ + this.prng.rangeFloat(-300, 300);
+      const carSpeed = speed + this.prng.rangeFloat(-500, 500);
+      car.speed = carSpeed;
+      car.baseSpeed = carSpeed;
       car.color = this.prng.choice(this.carColors);
     }
 
-    // Second barrier spaced 1800 units ahead, open at laneB
-    const secondZ = baseZ + 2200;
+    // Second barrier spaced 2400 units ahead, open at laneB
+    const secondZ = baseZ + 2400;
     for (let l = 0; l < ROAD.LANES; l++) {
-      if (l === laneB) continue; // open at laneB
+      if (l === laneB) continue;
       const car = this.pool.acquire();
       car.active = true;
       car.lane = l;
       car.x = ROAD.LANE_POSITIONS[l];
+      car.startX = car.x;
       car.targetX = car.x;
-      car.z = secondZ;
-      car.speed = speed;
-      car.baseSpeed = speed;
+      car.z = secondZ + this.prng.rangeFloat(-300, 300);
+      const carSpeed = speed + this.prng.rangeFloat(-600, 600);
+      car.speed = carSpeed;
+      car.baseSpeed = carSpeed;
       car.color = this.prng.choice(this.carColors);
     }
   }
 
   /**
-   * Spawns a slow wide heavy semi truck with a faster car overtaking
+   * Spawns a slow wide heavy semi truck with faster traffic alongside
    */
   public spawnTruckBlock(baseZ: number): void {
     const truckLane = this.prng.rangeInt(1, 2); // Center lanes
@@ -210,6 +220,7 @@ export class TrafficSpawner {
     truck.type = 'truck';
     truck.lane = truckLane;
     truck.x = ROAD.LANE_POSITIONS[truckLane];
+    truck.startX = truck.x;
     truck.targetX = truck.x;
     truck.z = baseZ;
     truck.speed = TRAFFIC.TRUCK_SPEED;
@@ -218,22 +229,23 @@ export class TrafficSpawner {
     truck.width = TRAFFIC.TRUCK_HITBOX_WIDTH;
     truck.length = TRAFFIC.TRUCK_HITBOX_LENGTH;
 
-    // Place an overtaker car in an adjacent lane slightly behind
+    // Place an overtaker sports car in an adjacent lane pulling ahead
     const sideLane = truckLane === 1 ? 0 : 3;
     const car = this.pool.acquire();
     car.active = true;
     car.type = 'sport';
     car.lane = sideLane;
     car.x = ROAD.LANE_POSITIONS[sideLane];
+    car.startX = car.x;
     car.targetX = car.x;
-    car.z = baseZ - 600;
+    car.z = baseZ + 800; // Pulling ahead to open gap behind it
     car.speed = TRAFFIC.FAST_CAR_SPEED;
     car.baseSpeed = TRAFFIC.FAST_CAR_SPEED;
     car.color = '#eab308'; // Sport yellow
   }
 
   /**
-   * Spawns a car that signals with turn blinker, then changes lane
+   * Spawns a car that signals with turn blinker, then changes lane smoothly
    */
   public spawnTelegraphedChange(baseZ: number): void {
     const startLane = this.prng.rangeInt(1, 2);
@@ -244,6 +256,7 @@ export class TrafficSpawner {
     car.type = 'sport';
     car.lane = targetLane; // Will change to target
     car.x = ROAD.LANE_POSITIONS[startLane];
+    car.startX = car.x;
     car.targetX = ROAD.LANE_POSITIONS[startLane];
     car.z = baseZ;
     car.speed = this.prng.rangeFloat(TRAFFIC.MIN_SPEED * 1.1, TRAFFIC.MAX_SPEED);
@@ -257,7 +270,7 @@ export class TrafficSpawner {
   }
 
   /**
-   * Spawns scattered high-speed traffic for near-miss weaving
+   * Spawns scattered high-speed traffic with wide overtaking pockets
    */
   public spawnOpenSprint(baseZ: number): void {
     const count = this.prng.rangeInt(2, 3);
@@ -273,8 +286,10 @@ export class TrafficSpawner {
       car.type = 'sedan';
       car.lane = lane;
       car.x = ROAD.LANE_POSITIONS[lane];
+      car.startX = car.x;
       car.targetX = car.x;
-      car.z = baseZ + this.prng.rangeFloat(-400, 400);
+      // Stagger longitudinally across 1400 units
+      car.z = baseZ + this.prng.rangeFloat(-700, 700);
       car.speed = this.prng.rangeFloat(TRAFFIC.MIN_SPEED, TRAFFIC.MAX_SPEED);
       car.baseSpeed = car.speed;
       car.color = this.prng.choice(this.carColors);

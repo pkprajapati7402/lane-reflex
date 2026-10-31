@@ -54,6 +54,7 @@ export class SpriteAtlas {
 
     // 3. Roadside scenery
     this.roadsideSprites.set('cyber_pillar', this.renderCyberPillar());
+    this.roadsideSprites.set('highway_gantry', this.renderHighwayGantry());
     this.roadsideSprites.set('palm_tree', this.renderPalmTree());
     this.roadsideSprites.set('billboard_redline', this.renderBillboard('REDLINE'));
     this.roadsideSprites.set('billboard_reflex', this.renderBillboard('REFLEX'));
@@ -401,6 +402,64 @@ export class SpriteAtlas {
     ctx.shadowBlur = 0;
 
     return { canvas, width: 400, height: 290 };
+  }
+
+  // --- HIGHWAY OVERHEAD GANTRY BRIDGE ---
+  private renderHighwayGantry(): CachedSprite {
+    const [canvas, ctx] = this.createCanvas(760, 260);
+
+    // Left and Right Industrial Truss Columns
+    ctx.fillStyle = '#1e1b2e';
+    ctx.fillRect(40, 60, 28, 200);
+    ctx.fillRect(692, 60, 28, 200);
+
+    // Cross-bracing struts on columns
+    ctx.strokeStyle = '#383058';
+    ctx.lineWidth = 3;
+    for (let y = 70; y < 240; y += 40) {
+      ctx.beginPath();
+      ctx.moveTo(40, y);
+      ctx.lineTo(68, y + 30);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(692, y);
+      ctx.lineTo(720, y + 30);
+      ctx.stroke();
+    }
+
+    // Overhead Horizontal Bridge Span
+    ctx.fillStyle = '#181524';
+    ctx.fillRect(20, 20, 720, 55);
+    ctx.strokeStyle = '#3b325c';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(20, 20, 720, 55);
+
+    // Digital Highway VMS Display Boards (3 overhead lane signage displays)
+    const boardWidth = 180;
+    const boardHeight = 36;
+    const boardYs = 30;
+
+    for (let i = 0; i < 3; i++) {
+      const bx = 90 + i * 210;
+      ctx.fillStyle = '#06060c';
+      ctx.fillRect(bx, boardYs, boardWidth, boardHeight);
+      ctx.strokeStyle = '#ff0055';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(bx, boardYs, boardWidth, boardHeight);
+
+      // Glowing Cyan / Amber Digital Matrix Text
+      ctx.fillStyle = i === 1 ? '#00f0ff' : '#ffcc00';
+      ctx.shadowColor = i === 1 ? '#00f0ff' : '#ffcc00';
+      ctx.shadowBlur = 8;
+      ctx.font = '900 13px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const label = i === 0 ? 'SPEED: FREE' : (i === 1 ? '⚡ REDLINE' : 'NITRO ZONE');
+      ctx.fillText(label, bx + boardWidth / 2, boardYs + boardHeight / 2);
+      ctx.shadowBlur = 0;
+    }
+
+    return { canvas, width: 760, height: 260 };
   }
 
   // --- ROADSIDE OBJECTS ---

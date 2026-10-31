@@ -45,26 +45,6 @@ export class Renderer {
     this.nearMissPulse = 1.0;
   }
 
-  private project(
-    point: { world: { x: number; y: number; z: number }; screen: { x: number; y: number; w: number; scale: number } },
-    camera: Camera
-  ): void {
-    const camZ = camera.z;
-    const camX = camera.x;
-    const camY = camera.y;
-
-    const deltaZ = point.world.z - camZ;
-    if (deltaZ <= 0) {
-      point.screen.scale = 0;
-      return;
-    }
-
-    point.screen.scale = (camera.depth / deltaZ) * (this.height / 2);
-    point.screen.x = Math.round((this.width / 2) + (point.screen.scale * (point.world.x - camX)));
-    point.screen.y = Math.round((this.height / 2) - (point.screen.scale * (point.world.y - camY)));
-    point.screen.w = Math.round(point.screen.scale * ROAD.ROAD_WIDTH);
-  }
-
   public render(
     road: Road,
     player: Player,
@@ -84,59 +64,105 @@ export class Renderer {
     // 1. Draw Sky & Distant Horizon
     this.drawSky(road, camera, player);
 
-    // 2. Project Road Segments
-    const baseSegment = road.findSegment(camera.z);
-    const basePercent = (camera.z % ROAD.SEGMENT_LENGTH) / ROAD.SEGMENT_LENGTH;
+    // 2. Project Road Segments Infinitely (Never Disappears)
+    const baseIndex = Math.floor(camera.z / ROAD.SEGMENT_LENGTH);
 
-    let x = 0;
-    let dx = -(baseSegment.curve * basePercent);
-
-    // Track visible segments for sprite sorting
-    const visibleSegments: RoadSegment[] = [];
-
-    for (let n = 0; n < ROAD.DRAW_DISTANCE; n++) {
-      const segIndex = (baseSegment.index + n) % road.segments.length;
-      const segment = road.segments[segIndex];
-      const looped = segment.index < baseSegment.index;
-
-      segment.p1.world.x = x;
-      segment.p1.world.z = (segment.index + (looped ? road.segments.length : 0)) * ROAD.SEGMENT_LENGTH;
-      this.project(segment.p1, camera);
-
-      x += dx;
-      dx += segment.curve;
-
-      segment.p2.world.x = x;
-      segment.p2.world.z = (segment.index + 1 + (looped ? road.segments.length : 0)) * ROAD.SEGMENT_LENGTH;
-      this.project(segment.p2, camera);
-
-      visibleSegments.push(segment);
+    interface VisibleSeg {
+      template: RoadSegment;
+      p1: { x: number; y: number; w: number; scale: number };
+      p2: { x: number; y: number; w: number; scale: number };
     }
 
-    // 3. Render Road Segments Back to Front
-    for (let n = visibleSegments.length - 1; n >= 0; n--) {
-      const segment = visibleSegments[n];
-      const p1 = segment.p1.screen;
-      const p2 = segment.p2.screen;
+    const visibleList: VisibleSeg[] = [];
+
+    for (let n = 0; n < ROAD.DRAW_DISTANCE; n++) {
+      const worldIndex = baseIndex + n;
+      const template = road.segments[((worldIndex % road.segments.length) + road.segments.length) % road.segments.length];
+
+      const z1 = worldIndex * ROAD.SEGMENT_LENGTH;
+      const z2 = (worldIndex + 1) * ROAD.SEGMENT_LENGTH;
+
+      const deltaZ1 = z1 - camera.z;
+      const deltaZ2 = z2 - camera.z;
+      if (deltaZ1 <= 10) continue;
+
+      const scale1 = (camera.depth / deltaZ1) * (this.height / 2);
+      const scale2 = (camera.depth / deltaZ2) * (this.height / 2);
+
+      const x1 = Math.round((this.width / 2) - (scale1 * camera.x));
+      const y1 = Math.round((this.height / 2) - (scale1 * (template.p1.world.y - camera.y)));
+      const w1 = Math.round(scale1 * ROAD.ROAD_WIDTH);
+
+      const x2 = Math.round((this.width / 2) - (scale2 * camera.x));
+      const y2 = Math.round((this.height / 2) - (scale2 * (template.p2.world.y - camera.y)));
+      const w2 = Math.round(scale2 * ROAD.ROAD_WIDTH);
+
+      // Cache screen projection on template for traffic sampling
+      template.p1.screen.x = x1;
+      template.p1.screen.y = y1;
+      template.p1.screen.w = w1;
+      template.p1.screen.scale = scale1;
+
+      visibleList.push({
+        template,
+        p1: { x: x1, y: y1, w: w1, scale: scale1 },
+        p2: { x: x2, y: y2, w: w2, scale: scale2 },
+      });
+    }
+
+    // 3. Render Road Segments & Roadside 3D Scenery Back to Front
+    for (let n = visibleList.length - 1; n >= 0; n--) {
+      const segData = visibleList[n];
+      const p1 = segData.p1;
+      const p2 = segData.p2;
 
       // Ignore segments behind camera or invalid projection
       if (p1.scale <= 0 || p2.scale <= 0 || p1.y <= p2.y) {
         continue;
       }
 
-      this.renderSegment(ctx, segment, p1, p2);
+      this.renderSegment(ctx, segData.template, p1, p2);
+
+      // Render 3D Roadside Props & Overhead Highway Gantries
+      if (segData.template.sprites && segData.template.sprites.length > 0) {
+        for (const prop of segData.template.sprites) {
+          const spriteCached = this.sprites.getRoadsideSprite(prop.name);
+          if (!spriteCached) continue;
+
+          if (prop.name === 'highway_gantry') {
+            // Overhead bridge spans across whole 4-lane road
+            const gantryScale = p1.scale * 3.4;
+            const gw = spriteCached.width * gantryScale;
+            const gh = spriteCached.height * gantryScale;
+            const gx = p1.x - gw / 2;
+            const gy = p1.y - gh * 0.88; // Elevate overhead above traffic
+            ctx.drawImage(spriteCached.canvas, gx, gy, gw, gh);
+          } else {
+            // Roadside pillars, palms, billboards on shoulder
+            const propScale = p1.scale * 2.2;
+            const pw = spriteCached.width * propScale;
+            const ph = spriteCached.height * propScale;
+            const px = p1.x + (prop.offset * p1.w) - pw / 2;
+            const py = p1.y - ph;
+            ctx.drawImage(spriteCached.canvas, px, py, pw, ph);
+          }
+        }
+      }
     }
 
-    // 4. Render Traffic Cars Back to Front
+    // 4. Interactive 3D Headlight Projection onto Road Surface
+    this.renderHeadlights(ctx, player);
+
+    // 5. Render Traffic Cars Back to Front
     this.renderTraffic(ctx, trafficCars, camera, road);
 
-    // 5. Render Player Car (in foreground)
+    // 6. Render Player Car (in foreground)
     this.renderPlayer(ctx, player);
 
-    // 6. Render Particles & Floating Pops
+    // 7. Render Particles & Floating Pops
     this.particles.render(ctx);
 
-    // 7. Speed FX: Speed lines & Vignette
+    // 8. Speed FX: Speed lines & Vignette
     this.renderSpeedEffects(ctx, player, dt);
 
     // 8. Near-Miss Screen Flash / Pulse
@@ -151,6 +177,40 @@ export class Renderer {
       ctx.fillStyle = 'rgba(230, 0, 50, 0.28)';
       ctx.fillRect(0, 0, this.width, this.height);
     }
+
+    ctx.restore();
+  }
+
+  private renderHeadlights(ctx: CanvasRenderingContext2D, player: Player): void {
+    const roadHalfWidthForeground = this.width * 0.36;
+    const playerScreenX = (this.width / 2) + (player.x * roadHalfWidthForeground * 0.55) + (player.steerAngle * 14);
+    const playerScreenY = this.height - 40;
+
+    // Headlight illumination trapezoid shining down road lanes
+    const beamLength = 220;
+    const beamSpread = 160;
+    const headlightY = playerScreenY - beamLength;
+
+    const beamGrad = ctx.createLinearGradient(playerScreenX, playerScreenY - 20, playerScreenX, headlightY);
+    const color = player.isBoosting ? 'rgba(0, 240, 255, 0.22)' : 'rgba(255, 255, 220, 0.12)';
+    beamGrad.addColorStop(0, color);
+    beamGrad.addColorStop(0.7, 'rgba(0, 240, 255, 0.05)');
+    beamGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+    ctx.save();
+    ctx.fillStyle = beamGrad;
+    ctx.beginPath();
+    ctx.moveTo(playerScreenX - 45, playerScreenY - 15);
+    ctx.lineTo(playerScreenX - beamSpread, headlightY);
+    ctx.lineTo(playerScreenX + beamSpread, headlightY);
+    ctx.lineTo(playerScreenX + 45, playerScreenY - 15);
+    ctx.closePath();
+    ctx.fill();
+
+    // Subtle current-lane guide glow on the asphalt
+    const laneWidth = (this.width * 0.45) / 4;
+    ctx.fillStyle = 'rgba(0, 240, 255, 0.06)';
+    ctx.fillRect(playerScreenX - laneWidth / 2, playerScreenY - 160, laneWidth, 140);
 
     ctx.restore();
   }
@@ -264,25 +324,13 @@ export class Renderer {
       const deltaZ = car.z - camera.z;
       if (deltaZ <= 100) continue;
 
-      // Find segment index along visible stretch
-      const segIndex = Math.floor(car.z / ROAD.SEGMENT_LENGTH) % road.segments.length;
-      const seg = road.segments[segIndex];
+      const segIndex = Math.floor(car.z / ROAD.SEGMENT_LENGTH);
+      const segTemplate = road.segments[((segIndex % road.segments.length) + road.segments.length) % road.segments.length];
 
-      // Calculate exact screen projection that follows road curves
-      // seg.p1.screen is already computed in the segment projection loop
-      const segPercent = (car.z % ROAD.SEGMENT_LENGTH) / ROAD.SEGMENT_LENGTH;
       const scale = (camera.depth / deltaZ) * (this.height / 2);
-
-      // Interpolate curved road center and width
-      let screenCenterX = (this.width / 2) + (scale * (seg.p1.world.x - camera.x));
-      let screenY = (this.height / 2) - (scale * (seg.p1.world.y - camera.y));
-      let roadWidthScreen = scale * ROAD.ROAD_WIDTH;
-
-      if (seg.p1.screen.scale > 0 && seg.p2.screen.scale > 0) {
-        screenCenterX = seg.p1.screen.x + (seg.p2.screen.x - seg.p1.screen.x) * segPercent;
-        screenY = seg.p1.screen.y + (seg.p2.screen.y - seg.p1.screen.y) * segPercent;
-        roadWidthScreen = seg.p1.screen.w + (seg.p2.screen.w - seg.p1.screen.w) * segPercent;
-      }
+      const screenCenterX = (this.width / 2) - (scale * camera.x);
+      const screenY = (this.height / 2) - (scale * (segTemplate.p1.world.y - camera.y));
+      const roadWidthScreen = scale * ROAD.ROAD_WIDTH;
 
       // Exact lane position on the road surface
       const screenX = screenCenterX + (car.x * roadWidthScreen);

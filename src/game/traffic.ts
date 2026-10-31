@@ -26,6 +26,7 @@ export interface TrafficCar {
   isChangingLane: boolean;
   laneChangeElapsed: number;
   laneChangeDuration: number;
+  speedModulationTimer: number;
 
   // Near-miss tracking
   nearMissAwarded: boolean;
@@ -57,6 +58,7 @@ export function createTrafficCar(): TrafficCar {
     isChangingLane: false,
     laneChangeElapsed: 0,
     laneChangeDuration: 1.1,
+    speedModulationTimer: 0,
     nearMissAwarded: false,
     hazardDetectedTime: 0,
   };
@@ -83,6 +85,7 @@ export function resetTrafficCar(car: TrafficCar): void {
   car.isChangingLane = false;
   car.laneChangeElapsed = 0;
   car.laneChangeDuration = 1.1;
+  car.speedModulationTimer = 0;
   car.nearMissAwarded = false;
   car.hazardDetectedTime = 0;
 }
@@ -92,6 +95,14 @@ export function updateTrafficCar(car: TrafficCar, dt: number): void {
 
   // 1. Move forward along road
   car.z += car.speed * dt;
+
+  // Dynamic speed modulation: individual subtle pacing fluctuations so clusters disperse
+  car.speedModulationTimer += dt;
+  if (car.speedModulationTimer > 1.8) {
+    car.speedModulationTimer = 0;
+    const fluctuation = Math.sin(car.id * 17.3 + car.z * 0.002) * 450;
+    car.speed = Math.max(TRAFFIC.MIN_SPEED * 0.85, car.baseSpeed + fluctuation);
+  }
 
   // 2. Handle turn indicator blinking (4 Hz blink)
   if (car.indicator !== 'none') {
