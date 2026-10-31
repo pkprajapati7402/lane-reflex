@@ -5,7 +5,7 @@ import { ROAD, PLAYER, TRAFFIC } from './core/constants';
 import { InputManager } from './input/input-manager';
 import { Road } from './game/road';
 import { Player } from './game/player';
-import { TrafficCar, createTrafficCar, resetTrafficCar, updateTrafficCar } from './game/traffic';
+import { TrafficCar, createTrafficCar, resetTrafficCar, updateTrafficSystem } from './game/traffic';
 import { TrafficSpawner } from './game/spawner';
 import { CollisionSystem } from './game/collision';
 import { Camera } from './render/camera';
@@ -239,11 +239,11 @@ class RedlineGame {
     this.player.rampDifficulty(this.score, this.sessionElapsed);
     this.player.update(dt, inputState, settings.laneAssist);
 
-    // 5. Update Traffic
+    // 5. Update Traffic with Intelligent Highway Rules (Car Following & Safe Overtaking)
     const activeTraffic = this.trafficPool.activeItems;
-    for (const car of activeTraffic) {
-      updateTrafficCar(car, dt);
+    updateTrafficSystem(activeTraffic, this.player, dt);
 
+    for (const car of activeTraffic) {
       // Register threats into stats reflex tracker
       const nowMs = performance.now();
       this.stats.registerHazardIfThreat(

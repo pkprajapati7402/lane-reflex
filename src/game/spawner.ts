@@ -157,7 +157,7 @@ export class TrafficSpawner {
         car.width = TRAFFIC.TRUCK_HITBOX_WIDTH;
         car.length = TRAFFIC.TRUCK_HITBOX_LENGTH;
         car.color = '#ef4444';
-        const truckSpeed = this.prng.rangeFloat(TRAFFIC.TRUCK_SPEED, TRAFFIC.TRUCK_SPEED * 1.25);
+        const truckSpeed = this.prng.rangeFloat(3800, 5200);
         car.speed = truckSpeed;
         car.baseSpeed = truckSpeed;
       } else if (isSport) {
@@ -165,7 +165,7 @@ export class TrafficSpawner {
         car.width = TRAFFIC.HITBOX_WIDTH;
         car.length = TRAFFIC.HITBOX_LENGTH;
         car.color = this.prng.choice(this.carColors);
-        const sportSpeed = this.prng.rangeFloat(TRAFFIC.MAX_SPEED * 0.9, TRAFFIC.FAST_CAR_SPEED);
+        const sportSpeed = this.prng.rangeFloat(8400, 9800);
         car.speed = sportSpeed;
         car.baseSpeed = sportSpeed;
       } else {
@@ -173,12 +173,13 @@ export class TrafficSpawner {
         car.width = TRAFFIC.HITBOX_WIDTH;
         car.length = TRAFFIC.HITBOX_LENGTH;
         car.color = this.prng.choice(this.carColors);
-        const sedanSpeed = this.prng.rangeFloat(TRAFFIC.MIN_SPEED * 1.1, TRAFFIC.MAX_SPEED * 0.85);
+        const sedanSpeed = this.prng.rangeFloat(5600, 8200);
         car.speed = sedanSpeed;
         car.baseSpeed = sedanSpeed;
       }
 
       car.lane = lane;
+      car.targetLane = lane;
       car.x = ROAD.LANE_POSITIONS[lane];
       car.startX = car.x;
       car.targetX = car.x;
@@ -207,13 +208,14 @@ export class TrafficSpawner {
       car.active = true;
       car.type = 'sedan';
       car.lane = lane;
+      car.targetLane = lane;
       car.x = ROAD.LANE_POSITIONS[lane];
       car.startX = car.x;
       car.targetX = car.x;
       // Stagger longitudinally so cars NEVER form an unbroken rigid line
       car.z = baseZ + this.prng.rangeFloat(-500, 500);
       // Individual speed variation so cars naturally disperse over time
-      const carSpeed = baseSpeed + this.prng.rangeFloat(-700, 700);
+      const carSpeed = baseSpeed + this.prng.rangeFloat(-800, 800);
       car.speed = carSpeed;
       car.baseSpeed = carSpeed;
       car.color = this.prng.choice(this.carColors);
@@ -275,12 +277,13 @@ export class TrafficSpawner {
     truck.active = true;
     truck.type = 'truck';
     truck.lane = truckLane;
+    truck.targetLane = truckLane;
     truck.x = ROAD.LANE_POSITIONS[truckLane];
     truck.startX = truck.x;
     truck.targetX = truck.x;
     truck.z = baseZ;
-    truck.speed = TRAFFIC.TRUCK_SPEED;
-    truck.baseSpeed = TRAFFIC.TRUCK_SPEED;
+    truck.speed = this.prng.rangeFloat(3800, 4800);
+    truck.baseSpeed = truck.speed;
     truck.color = '#ef4444'; // Heavy industrial red
     truck.width = TRAFFIC.TRUCK_HITBOX_WIDTH;
     truck.length = TRAFFIC.TRUCK_HITBOX_LENGTH;
@@ -291,12 +294,13 @@ export class TrafficSpawner {
     car.active = true;
     car.type = 'sport';
     car.lane = sideLane;
+    car.targetLane = sideLane;
     car.x = ROAD.LANE_POSITIONS[sideLane];
     car.startX = car.x;
     car.targetX = car.x;
     car.z = baseZ + 800; // Pulling ahead to open gap behind it
-    car.speed = TRAFFIC.FAST_CAR_SPEED;
-    car.baseSpeed = TRAFFIC.FAST_CAR_SPEED;
+    car.speed = this.prng.rangeFloat(8600, 9600);
+    car.baseSpeed = car.speed;
     car.color = '#eab308'; // Sport yellow
   }
 
@@ -310,12 +314,13 @@ export class TrafficSpawner {
     const car = this.pool.acquire();
     car.active = true;
     car.type = 'sport';
-    car.lane = targetLane; // Will change to target
+    car.lane = startLane;
+    car.targetLane = targetLane; // Will change to target
     car.x = ROAD.LANE_POSITIONS[startLane];
     car.startX = car.x;
     car.targetX = ROAD.LANE_POSITIONS[startLane];
     car.z = baseZ;
-    car.speed = this.prng.rangeFloat(TRAFFIC.MIN_SPEED * 1.1, TRAFFIC.MAX_SPEED);
+    car.speed = this.prng.rangeFloat(7200, 8800);
     car.baseSpeed = car.speed;
     car.color = '#a855f7'; // Purple sports car
     

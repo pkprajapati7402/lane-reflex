@@ -81,5 +81,19 @@ describe('Collision & Near-Miss System', () => {
     expect(result.hasCrashed).toBe(false);
     expect(result.nearMisses.length).toBe(0);
   });
+
+  it('does NOT crash player when player has overtaken car and is in front', () => {
+    // Player is in front of car in the same lane, but driving slower (e.g. braking)
+    player.x = 0;
+    player.z = 1080; // 80 units ahead of car
+    player.speed = 2000;
+
+    car.x = 0;
+    car.z = 1000;
+    car.speed = 6000;
+
+    const result = collision.checkCollisions(player, [car]);
+    expect(result.hasCrashed).toBe(false);
+  });
 });
 

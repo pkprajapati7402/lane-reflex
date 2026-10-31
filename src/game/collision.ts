@@ -48,7 +48,11 @@ export class CollisionSystem {
       const collisionThresholdZ = (pLength + cLength) / 2;
 
       // 1. Crash Collision Check
-      if (deltaX < collisionThresholdX && deltaZ < collisionThresholdZ) {
+      // Only triggers if player drives into a car ahead or collides while abreast.
+      // If player has already overtaken the car and is in front (player.z >= car.z + 50),
+      // the trailing car brakes and follows; it never causes an unfair game over on the player.
+      const isPlayerBehindOrAbreast = player.z < car.z + 50;
+      if (deltaX < collisionThresholdX && deltaZ < collisionThresholdZ && isPlayerBehindOrAbreast) {
         result.hasCrashed = true;
         result.crashedWithCarId = car.id;
         result.crashCause = car.type === 'truck' ? 'Heavy Truck Collision' : 'Rear-end Collision';

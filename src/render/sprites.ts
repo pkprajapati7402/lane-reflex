@@ -44,7 +44,10 @@ export class SpriteAtlas {
     for (const c of colors) {
       this.trafficSprites.set(`sedan_${c}`, this.renderSedan(c, false, false));
       this.trafficSprites.set(`sedan_${c}_brake`, this.renderSedan(c, true, false));
+      this.trafficSprites.set(`sedan_${c}_left`, this.renderSedan(c, false, true, 'left'));
+      this.trafficSprites.set(`sedan_${c}_right`, this.renderSedan(c, false, true, 'right'));
       this.trafficSprites.set(`sport_${c}`, this.renderSportCar(c, false, false));
+      this.trafficSprites.set(`sport_${c}_brake`, this.renderSportCar(c, true, false));
       this.trafficSprites.set(`sport_${c}_left`, this.renderSportCar(c, false, true, 'left'));
       this.trafficSprites.set(`sport_${c}_right`, this.renderSportCar(c, false, true, 'right'));
     }
@@ -203,7 +206,7 @@ export class SpriteAtlas {
   }
 
   // --- TRAFFIC SEDAN ---
-  private renderSedan(color: string, brake: boolean, _indicator: boolean): CachedSprite {
+  private renderSedan(color: string, brake: boolean, hasIndicator: boolean = false, dir: 'left' | 'right' = 'left'): CachedSprite {
     const [canvas, ctx] = this.createCanvas(300, 170);
     const cx = 150;
 
@@ -259,6 +262,19 @@ export class SpriteAtlas {
     ctx.fillRect(cx - 96, 95, 36, 14);
     ctx.fillRect(cx + 60, 95, 36, 14);
     ctx.shadowBlur = 0;
+
+    // Turn indicator (Blinking amber)
+    if (hasIndicator) {
+      ctx.fillStyle = '#f59e0b';
+      ctx.shadowColor = '#f59e0b';
+      ctx.shadowBlur = 16;
+      if (dir === 'left') {
+        ctx.fillRect(cx - 102, 93, 16, 18);
+      } else {
+        ctx.fillRect(cx + 86, 93, 16, 18);
+      }
+      ctx.shadowBlur = 0;
+    }
 
     return { canvas, width: 300, height: 170 };
   }
@@ -540,18 +556,23 @@ export class SpriteAtlas {
     if (car.type === 'truck') {
       return this.trafficSprites.get('truck_red')!;
     }
-    if (car.type === 'sport') {
-      if (car.indicator !== 'none' && car.indicatorFlash) {
-        const key = `sport_${car.color}_${car.indicator}`;
-        return this.trafficSprites.get(key) || this.trafficSprites.get(`sport_${car.color}`) || this.trafficSprites.get('sport_#ffd600')!;
-      }
-      return this.trafficSprites.get(`sport_${car.color}`) || this.trafficSprites.get('sport_#ffd600')!;
+
+    // 1. Blinking turn indicator
+    if (car.indicator !== 'none' && car.indicatorFlash) {
+      const key = `${car.type}_${car.color}_${car.indicator}`;
+      const found = this.trafficSprites.get(key);
+      if (found) return found;
     }
-    // Sedan
+
+    // 2. Brake lights
     if (car.isBraking) {
-      return this.trafficSprites.get(`sedan_${car.color}_brake`) || this.trafficSprites.get(`sedan_${car.color}`) || this.trafficSprites.get('sedan_#00e5ff')!;
+      const key = `${car.type}_${car.color}_brake`;
+      const found = this.trafficSprites.get(key);
+      if (found) return found;
     }
-    return this.trafficSprites.get(`sedan_${car.color}`) || this.trafficSprites.get('sedan_#00e5ff')!;
+
+    // 3. Normal cruising sprite
+    return this.trafficSprites.get(`${car.type}_${car.color}`) || this.trafficSprites.get('sedan_#00e5ff')!;
   }
 
   public getRoadsideSprite(name: string): CachedSprite {

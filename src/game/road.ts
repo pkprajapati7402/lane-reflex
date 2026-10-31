@@ -180,49 +180,15 @@ export class Road {
     return this.segments.length === 0 ? 0 : this.segments[this.segments.length - 1].p2.world.y;
   }
 
-  private addRoad(enter: number, hold: number, leave: number, curve: number, yChange: number): void {
-    const startY = this.getLastY();
-    const endY = startY + yChange * ROAD.SEGMENT_LENGTH;
-    const total = enter + hold + leave;
-
-    for (let i = 0; i < enter; i++) {
-      const ease = (1 - Math.cos((i / enter) * Math.PI)) / 2;
-      this.addSegment(curve * ease, startY + (endY - startY) * (i / total));
-    }
-    for (let i = 0; i < hold; i++) {
-      this.addSegment(curve, startY + (endY - startY) * ((enter + i) / total));
-    }
-    for (let i = 0; i < leave; i++) {
-      const ease = (1 + Math.cos((i / leave) * Math.PI)) / 2;
-      this.addSegment(curve * ease, startY + (endY - startY) * ((enter + hold + i) / total));
-    }
-  }
-
   private buildTrack(): void {
     this.segments = [];
 
-    // Completely straight multi-lane highway with gentle 3D elevation crests and dips
-    // 1. Long high-speed flat straightaway
-    this.addRoad(40, 80, 40, 0, 0);
-
-    // 2. Gentle rolling crest hill
-    this.addRoad(40, 60, 40, 0, 16);
-    this.addRoad(40, 60, 40, 0, -16);
-
-    // 3. Flat straight speedway
-    this.addRoad(50, 90, 50, 0, 0);
-
-    // 4. Gentle rolling dip
-    this.addRoad(40, 50, 40, 0, -12);
-    this.addRoad(40, 50, 40, 0, 12);
-
-    // 5. High-speed elevated viaduct stretch
-    this.addRoad(40, 60, 40, 0, 18);
-    this.addRoad(50, 70, 50, 0, 0);
-    this.addRoad(40, 60, 40, 0, -18);
-
-    // 6. Return straightaway
-    this.addRoad(50, 80, 50, 0, 0);
+    // Completely straight multi-lane highway in a pure vertical straight line
+    // Flat elevation (y = 0) and zero curvature (curve = 0)
+    const totalSegments = 360;
+    for (let i = 0; i < totalSegments; i++) {
+      this.addSegment(0, 0);
+    }
 
     this.trackLength = this.segments.length * ROAD.SEGMENT_LENGTH;
   }
