@@ -60,6 +60,7 @@ class RedlineGame {
     this.audio = new AudioSystem();
     this.stats = new StatsTracker();
     (window as any)._redlineStatsTracker = this.stats;
+    (window as any)._redlineGame = this;
 
     // Traffic object pool (32 concurrent cars max)
     this.trafficPool = new ObjectPool<TrafficCar>(
@@ -95,6 +96,11 @@ class RedlineGame {
       onResume: () => this.resumeGame(),
       onBiomeChange: (biome) => this.road.setBiome(biome as any),
       onDensityChange: (density) => this.spawner.setDensityMode(density),
+      onReturnToMenu: () => {
+        this.isRunningSession = false;
+        this.audio.silenceEngineAndBoost();
+        this.audio.stopMusic();
+      },
     });
 
     // Populate profile initially
@@ -145,6 +151,7 @@ class RedlineGame {
     this.hud.showScreen('playing');
     this.audio.resumeIfSuspended();
     this.audio.setComboTier(1);
+    this.audio.startMusic();
   }
 
   public restartRun(): void {
@@ -154,11 +161,14 @@ class RedlineGame {
 
   public pauseGame(): void {
     if (!this.isRunningSession || this.player.isCrashed) return;
+    this.audio.silenceEngineAndBoost();
+    this.audio.stopMusic();
     this.loop.pause();
     this.hud.showScreen('pause');
   }
 
   public resumeGame(): void {
+    this.audio.startMusic();
     this.loop.resume();
     this.hud.showScreen('playing');
   }
@@ -214,6 +224,8 @@ class RedlineGame {
       if (this.sprintTimeRemaining <= 0) {
         // Complete Sprint
         this.player.isCrashed = true;
+        this.audio.silenceEngineAndBoost();
+        this.audio.stopMusic();
         const lastRun = this.stats.endRun('Sprint Time Complete');
         if (lastRun) {
           this.hud.showCrashResults(lastRun, this.stats.getProfile());
@@ -292,6 +304,8 @@ class RedlineGame {
       // Check drill completion when all trials are passed
       if (this.drillTrialsCompleted >= this.drillMaxTrials && this.trafficPool.count === 0 && !this.player.isCrashed) {
         this.player.isCrashed = true;
+        this.audio.silenceEngineAndBoost();
+        this.audio.stopMusic();
         const run = this.stats.endRun('Reaction Drill Complete');
         if (run) {
           this.hud.showCrashResults(run, this.stats.getProfile());
@@ -312,7 +326,7 @@ class RedlineGame {
       this.player.crash();
       this.camera.triggerShake(28);
       this.input.triggerHaptics(300, 1.0, 1.0); // Heavy controller rumble
-      this.audio.playCrash();
+      this.audio.handleCrash();
 
       // Crash debris explosion at player screen position
       this.particles.spawnCrashDebris(this.renderer.width / 2, this.renderer.height - 80, 50);

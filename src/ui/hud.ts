@@ -31,6 +31,7 @@ export class HudUI {
   private onResumeCallback?: () => void;
   private onBiomeChangeCallback?: (biome: string) => void;
   private onDensityChangeCallback?: (density: 'low' | 'moderate' | 'high') => void;
+  private onReturnToMenuCallback?: () => void;
 
   constructor(
     container: HTMLElement,
@@ -48,12 +49,14 @@ export class HudUI {
     onResume: () => void;
     onBiomeChange?: (biome: string) => void;
     onDensityChange?: (density: 'low' | 'moderate' | 'high') => void;
+    onReturnToMenu?: () => void;
   }): void {
     this.onStartGameCallback = callbacks.onStartGame;
     this.onRestartCallback = callbacks.onRestart;
     this.onResumeCallback = callbacks.onResume;
     this.onBiomeChangeCallback = callbacks.onBiomeChange;
     this.onDensityChangeCallback = callbacks.onDensityChange;
+    this.onReturnToMenuCallback = callbacks.onReturnToMenu;
   }
 
   private buildDom(): void {
@@ -427,6 +430,7 @@ export class HudUI {
     this.container.querySelector('#btn-crash-menu')?.addEventListener('click', () => {
       this.audioSystem.playUiBlip();
       this.showScreen('menu');
+      this.onReturnToMenuCallback?.();
     });
 
     // Pause menu
@@ -445,6 +449,7 @@ export class HudUI {
     this.container.querySelector('#btn-pause-menu')?.addEventListener('click', () => {
       this.audioSystem.playUiBlip();
       this.showScreen('menu');
+      this.onReturnToMenuCallback?.();
     });
 
     // Settings controls bindings

@@ -83,6 +83,39 @@ export class AudioSystem {
     }
   }
 
+  public silenceEngineAndBoost(): void {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    if (this.engineGain) {
+      this.engineGain.gain.setTargetAtTime(0, t, 0.04);
+    }
+    if (this.boostGain) {
+      this.boostGain.gain.setTargetAtTime(0, t, 0.04);
+    }
+  }
+
+  public stopMusic(): void {
+    if (this.musicIntervalId !== null) {
+      clearInterval(this.musicIntervalId);
+      this.musicIntervalId = null;
+    }
+  }
+
+  public startMusic(): void {
+    if (!this.ctx) return;
+    this.startMusicArpeggiator();
+  }
+
+  /**
+   * Immediately silences engine, boost, and music arpeggiator upon collision,
+   * leaving only the dramatic crash impact sound.
+   */
+  public handleCrash(): void {
+    this.silenceEngineAndBoost();
+    this.stopMusic();
+    this.playCrash();
+  }
+
   private startEngineSynth(): void {
     if (!this.ctx || !this.sfxGain || this.isEngineRunning) return;
 
