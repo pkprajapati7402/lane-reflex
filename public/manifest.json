@@ -1,0 +1,18 @@
+{
+  "name": "REDLINE - Reflex Trainer",
+  "short_name": "REDLINE",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#08070e",
+  "theme_color": "#08070e",
+  "description": "High-speed arcade reflex and decision-training traffic game",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "64x64 128x128 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
+
